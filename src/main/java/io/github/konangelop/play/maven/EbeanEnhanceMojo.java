@@ -15,15 +15,9 @@ import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 
 import java.io.File;
-import java.io.IOException;
-import java.lang.instrument.ClassFileTransformer;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -75,50 +69,50 @@ public class EbeanEnhanceMojo extends AbstractMojo {
 
         try {
             URL[] classpathUrls = buildClasspath();
-            URLClassLoader classLoader = new URLClassLoader(classpathUrls, getClass().getClassLoader());
-
-            // Load the Ebean Transformer dynamically from the project's classpath
-            Class<?> transformerClass;
-            try {
-                transformerClass = classLoader.loadClass("io.ebean.enhance.Transformer");
-            } catch (ClassNotFoundException e) {
-                getLog().warn("Ebean agent not found on classpath. Add io.ebean:ebean-agent as a dependency to enable Ebean enhancement.");
-                return;
-            }
-
-            // Create transformer: new Transformer(classLoader, "debug=0")
-            Object transformer = transformerClass
-                    .getConstructor(ClassLoader.class, String.class)
-                    .newInstance(classLoader, "debug=0");
-
-            java.lang.reflect.Method transformMethod = transformerClass.getMethod(
-                    "transform", ClassLoader.class, String.class, Class.class,
-                    java.security.ProtectionDomain.class, byte[].class);
-
-            List<File> classFiles = findClassFiles(classesDirectory);
-            int enhancedCount = 0;
-
-            for (File classFile : classFiles) {
-                String className = classFileToClassName(classesDirectory, classFile);
-
-                // If ebeanModels is specified, only enhance matching classes
-                if (ebeanModels != null && !ebeanModels.isEmpty() && !matchesModels(className)) {
-                    continue;
+            try (URLClassLoader classLoader = new URLClassLoader(classpathUrls, getClass().getClassLoader())) {
+                // Load the Ebean Transformer dynamically from the project's classpath
+                Class<?> transformerClass;
+                try {
+                    transformerClass = classLoader.loadClass("io.ebean.enhance.Transformer");
+                } catch (ClassNotFoundException e) {
+                    getLog().warn("Ebean agent not found on classpath. Add io.ebean:ebean-agent as a dependency to enable Ebean enhancement.");
+                    return;
                 }
 
-                byte[] classBytes = Files.readAllBytes(classFile.toPath());
-                byte[] enhanced = (byte[]) transformMethod.invoke(
-                        transformer, classLoader, className.replace('.', '/'),
-                        null, null, classBytes);
+                // Create transformer: new Transformer(classLoader, "debug=0")
+                Object transformer = transformerClass
+                        .getConstructor(ClassLoader.class, String.class)
+                        .newInstance(classLoader, "debug=0");
 
-                if (enhanced != null) {
-                    Files.write(classFile.toPath(), enhanced);
-                    enhancedCount++;
-                    getLog().debug("Ebean enhanced: " + className);
+                java.lang.reflect.Method transformMethod = transformerClass.getMethod(
+                        "transform", ClassLoader.class, String.class, Class.class,
+                        java.security.ProtectionDomain.class, byte[].class);
+
+                List<File> classFiles = ClassFileUtils.findClassFiles(classesDirectory, getLog());
+                int enhancedCount = 0;
+
+                for (File classFile : classFiles) {
+                    String className = ClassFileUtils.classFileToClassName(classesDirectory, classFile);
+
+                    // If ebeanModels is specified, only enhance matching classes
+                    if (ebeanModels != null && !ebeanModels.isEmpty() && !matchesModels(className)) {
+                        continue;
+                    }
+
+                    byte[] classBytes = Files.readAllBytes(classFile.toPath());
+                    byte[] enhanced = (byte[]) transformMethod.invoke(
+                            transformer, classLoader, className.replace('.', '/'),
+                            null, null, classBytes);
+
+                    if (enhanced != null) {
+                        Files.write(classFile.toPath(), enhanced);
+                        enhancedCount++;
+                        getLog().debug("Ebean enhanced: " + className);
+                    }
                 }
-            }
 
-            getLog().info("Ebean enhanced " + enhancedCount + " class(es)");
+                getLog().info("Ebean enhanced " + enhancedCount + " class(es)");
+            }
         } catch (Exception e) {
             throw new MojoExecutionException("Ebean enhancement failed: " + e.getMessage(), e);
         }
@@ -151,28 +145,4 @@ public class EbeanEnhanceMojo extends AbstractMojo {
         return urls.toArray(new URL[0]);
     }
 
-    private String classFileToClassName(File classesDir, File classFile) {
-        String relativePath = classesDir.toPath().relativize(classFile.toPath()).toString();
-        return relativePath
-                .replace(File.separatorChar, '.')
-                .replaceAll("\\.class$", "");
-    }
-
-    private List<File> findClassFiles(File directory) {
-        List<File> result = new ArrayList<>();
-        try {
-            Files.walkFileTree(directory.toPath(), new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                    if (file.toString().endsWith(".class")) {
-                        result.add(file.toFile());
-                    }
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } catch (IOException e) {
-            getLog().warn("Error scanning classes directory: " + e.getMessage());
-        }
-        return result;
-    }
 }

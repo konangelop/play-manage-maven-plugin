@@ -17,18 +17,7 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 
-import java.io.DataOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -67,7 +56,7 @@ public class EnhanceClassesMojo extends AbstractMojo {
             return;
         }
 
-        List<File> classFiles = findClassFiles(classesDirectory);
+        List<File> classFiles = ClassFileUtils.findClassFiles(classesDirectory, getLog());
         if (classFiles.isEmpty()) {
             getLog().info("No class files found to enhance");
             return;
@@ -85,7 +74,7 @@ public class EnhanceClassesMojo extends AbstractMojo {
 
             int enhancedCount = 0;
             for (File classFile : classFiles) {
-                String className = classFileToClassName(classesDirectory, classFile);
+                String className = ClassFileUtils.classFileToClassName(classesDirectory, classFile);
                 try {
                     CtClass ctClass = classPool.get(className);
 
@@ -128,9 +117,12 @@ public class EnhanceClassesMojo extends AbstractMojo {
             String getterName = "get" + capitalizedName;
             String setterName = "set" + capitalizedName;
 
+            // Convert JVM type name to Java source syntax (e.g. [Ljava.lang.String; → java.lang.String[])
+            String typeName = toJavaSourceTypeName(field.getType());
+
             // Generate getter if it doesn't exist
             if (!hasMethod(ctClass, getterName, 0)) {
-                String getterBody = "public " + field.getType().getName() + " " + getterName + "() { return this." + fieldName + "; }";
+                String getterBody = "public " + typeName + " " + getterName + "() { return this." + fieldName + "; }";
                 CtMethod getter = CtNewMethod.make(getterBody, ctClass);
                 ctClass.addMethod(getter);
                 modified = true;
@@ -138,7 +130,7 @@ public class EnhanceClassesMojo extends AbstractMojo {
 
             // Generate setter if it doesn't exist
             if (!hasMethod(ctClass, setterName, 1)) {
-                String setterBody = "public void " + setterName + "(" + field.getType().getName() + " value) { this." + fieldName + " = value; }";
+                String setterBody = "public void " + setterName + "(" + typeName + " value) { this." + fieldName + " = value; }";
                 CtMethod setter = CtNewMethod.make(setterBody, ctClass);
                 ctClass.addMethod(setter);
                 modified = true;
@@ -146,6 +138,13 @@ public class EnhanceClassesMojo extends AbstractMojo {
         }
 
         return modified;
+    }
+
+    private String toJavaSourceTypeName(CtClass type) throws NotFoundException {
+        if (type.isArray()) {
+            return toJavaSourceTypeName(type.getComponentType()) + "[]";
+        }
+        return type.getName();
     }
 
     private boolean hasMethod(CtClass ctClass, String methodName, int paramCount) {
@@ -161,28 +160,4 @@ public class EnhanceClassesMojo extends AbstractMojo {
         return false;
     }
 
-    private String classFileToClassName(File classesDir, File classFile) {
-        String relativePath = classesDir.toPath().relativize(classFile.toPath()).toString();
-        return relativePath
-                .replace(File.separatorChar, '.')
-                .replaceAll("\\.class$", "");
-    }
-
-    private List<File> findClassFiles(File directory) {
-        List<File> result = new ArrayList<>();
-        try {
-            Files.walkFileTree(directory.toPath(), new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                    if (file.toString().endsWith(".class")) {
-                        result.add(file.toFile());
-                    }
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } catch (IOException e) {
-            getLog().warn("Error scanning classes directory: " + e.getMessage());
-        }
-        return result;
-    }
 }
