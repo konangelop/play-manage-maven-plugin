@@ -156,7 +156,7 @@ class ZincCompilerSupport {
                 previousResult = PreviousResult.of(Optional.empty(), Optional.empty());
             }
 
-            Map<Path, DefinesClass> definesClassCache = new HashMap<>();
+            Map<String, DefinesClass> definesClassCache = new HashMap<>();
             PerClasspathEntryLookup lookup = new PerClasspathEntryLookup() {
                 @Override
                 public Optional<CompileAnalysis> analysis(VirtualFile classpathEntry) {
@@ -165,8 +165,9 @@ class ZincCompilerSupport {
 
                 @Override
                 public DefinesClass definesClass(VirtualFile classpathEntry) {
-                    Path path = ((sbt.internal.inc.PlainVirtualFile) classpathEntry).id();
-                    return definesClassCache.computeIfAbsent(path, ZincCompilerSupport::createDefinesClass);
+                    String id = classpathEntry.id();
+                    return definesClassCache.computeIfAbsent(id,
+                            k -> createDefinesClass(Path.of(k)));
                 }
             };
 
