@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>io.github.konangelop</groupId>
+    <artifactId>play-manage-maven-plugin</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>maven-plugin</packaging>
+
+    <name>Play Manage Maven Plugin</name>
+    <description>
+        Maven plugin for Play Framework 2.9.x projects.
+        Compiles routes and Twirl templates to Scala source code,
+        delegates Scala compilation to scala-maven-plugin with incremental compilation via Zinc.
+    </description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+
+        <play.version>2.9.6</play.version>
+        <twirl.version>1.6.8</twirl.version>
+        <scala.binary.version>2.13</scala.binary.version>
+        <scala.version>2.13.15</scala.version>
+
+        <maven.version>3.9.6</maven.version>
+        <maven-plugin-api.version>3.9.6</maven-plugin-api.version>
+        <maven-plugin-annotations.version>3.11.0</maven-plugin-annotations.version>
+        <plexus-archiver.version>4.9.1</plexus-archiver.version>
+        <maven-invoker.version>3.3.0</maven-invoker.version>
+    </properties>
+
+    <dependencies>
+        <!-- Play Routes Compiler -->
+        <dependency>
+            <groupId>com.typesafe.play</groupId>
+            <artifactId>play-routes-compiler_${scala.binary.version}</artifactId>
+            <version>${play.version}</version>
+        </dependency>
+
+        <!-- Twirl Template Compiler -->
+        <dependency>
+            <groupId>com.typesafe.play</groupId>
+            <artifactId>twirl-compiler_${scala.binary.version}</artifactId>
+            <version>${twirl.version}</version>
+        </dependency>
+
+        <!-- Scala Library (required by Scala APIs) -->
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <version>${scala.version}</version>
+        </dependency>
+
+        <!-- Maven Plugin API -->
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-plugin-api</artifactId>
+            <version>${maven-plugin-api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Maven Core (MavenProject, etc.) -->
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-core</artifactId>
+            <version>${maven.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Maven Plugin Annotations -->
+        <dependency>
+            <groupId>org.apache.maven.plugin-tools</groupId>
+            <artifactId>maven-plugin-annotations</artifactId>
+            <version>${maven-plugin-annotations.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Plexus Archiver for distribution packaging -->
+        <dependency>
+            <groupId>org.codehaus.plexus</groupId>
+            <artifactId>plexus-archiver</artifactId>
+            <version>${plexus-archiver.version}</version>
+        </dependency>
+
+        <!-- Maven Shared Invoker for dev mode rebuild -->
+        <dependency>
+            <groupId>org.apache.maven.shared</groupId>
+            <artifactId>maven-invoker</artifactId>
+            <version>${maven-invoker.version}</version>
+        </dependency>
+
+        <!-- Javassist for bytecode enhancement -->
+        <dependency>
+            <groupId>org.javassist</groupId>
+            <artifactId>javassist</artifactId>
+            <version>3.30.2-GA</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-plugin-plugin</artifactId>
+                <version>${maven-plugin-annotations.version}</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.12.1</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
