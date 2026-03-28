@@ -20,6 +20,8 @@ import scala.jdk.javaapi.CollectionConverters;
 import scala.util.Either;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -103,7 +105,14 @@ public class RoutesCompileMojo extends AbstractMojo {
         Seq<String> scalaImports = CollectionConverters.asScala(imports).toList().toSeq();
 
         int compiledCount = 0;
+        int upToDateCount = 0;
         for (File routesFile : routesFiles) {
+            if (isUpToDate(routesFile)) {
+                getLog().debug("Routes file up-to-date: " + routesFile.getAbsolutePath());
+                upToDateCount++;
+                continue;
+            }
+
             getLog().info("Compiling routes file: " + routesFile.getAbsolutePath());
 
             RoutesCompiler.RoutesCompilerTask task = new RoutesCompiler.RoutesCompilerTask(
@@ -132,9 +141,39 @@ public class RoutesCompileMojo extends AbstractMojo {
 
             scala.collection.immutable.Seq<File> generated = result.right().get();
             compiledCount += generated.size();
+            touchMarker(routesFile);
         }
 
-        getLog().info("Compiled " + compiledCount + " routes source file(s)");
+        if (compiledCount > 0) {
+            getLog().info("Compiled " + compiledCount + " routes source file(s)" +
+                    (upToDateCount > 0 ? ", " + upToDateCount + " route(s) up-to-date" : ""));
+        } else {
+            getLog().info("All " + routesFiles.size() + " routes file(s) are up-to-date");
+        }
+    }
+
+    /**
+     * Checks if the generated output for a routes file is up-to-date by comparing
+     * the source file's last-modified time against a marker file written after
+     * successful compilation.
+     */
+    private boolean isUpToDate(File routesFile) {
+        File marker = markerFile(routesFile);
+        return marker.exists() && marker.lastModified() >= routesFile.lastModified();
+    }
+
+    private void touchMarker(File routesFile) {
+        File marker = markerFile(routesFile);
+        marker.getParentFile().mkdirs();
+        try {
+            Files.writeString(marker.toPath(), String.valueOf(routesFile.lastModified()));
+        } catch (IOException e) {
+            getLog().debug("Failed to write routes cache marker: " + e.getMessage());
+        }
+    }
+
+    private File markerFile(File routesFile) {
+        return new File(outputDirectory, ".cache/" + routesFile.getName() + ".marker");
     }
 
     private List<File> findRoutesFiles(File directory) {

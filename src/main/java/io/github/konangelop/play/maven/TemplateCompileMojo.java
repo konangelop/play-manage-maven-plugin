@@ -145,6 +145,7 @@ public class TemplateCompileMojo extends AbstractMojo {
         Codec codec = Codec.apply(sourceEncoding);
 
         int compiledCount = 0;
+        int upToDateCount = 0;
         for (File templateFile : templateFiles) {
             String formatterType = getFormatterType(templateFile.getName());
             if (formatterType == null) {
@@ -158,6 +159,8 @@ public class TemplateCompileMojo extends AbstractMojo {
             getLog().debug("Compiling template: " + templateFile.getAbsolutePath());
 
             try {
+                // TwirlCompiler.compile() has built-in timestamp checking:
+                // returns Some(file) if regenerated, None if the output is up-to-date.
                 Option<File> result = TwirlCompiler.compile(
                         templateFile,
                         sourceDirectory,
@@ -172,13 +175,20 @@ public class TemplateCompileMojo extends AbstractMojo {
                 if (result.isDefined()) {
                     compiledCount++;
                     getLog().debug("Generated: " + result.get().getAbsolutePath());
+                } else {
+                    upToDateCount++;
                 }
             } catch (Exception e) {
                 throw new MojoFailureException("Failed to compile template " + templateFile.getAbsolutePath() + ": " + e.getMessage(), e);
             }
         }
 
-        getLog().info("Compiled " + compiledCount + " template file(s)");
+        if (compiledCount > 0) {
+            getLog().info("Compiled " + compiledCount + " template file(s)" +
+                    (upToDateCount > 0 ? ", " + upToDateCount + " up-to-date" : ""));
+        } else {
+            getLog().info("All " + upToDateCount + " template file(s) are up-to-date");
+        }
     }
 
     private List<String> buildImports(String templateFileName) {
