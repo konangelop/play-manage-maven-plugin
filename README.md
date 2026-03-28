@@ -6,7 +6,7 @@ Provides 10 goals covering the full lifecycle: routes compilation, Twirl templat
 
 ## Requirements
 
-- Java 11+
+- Java 17+
 - Maven 3.9+
 - Play Framework 2.9.x
 

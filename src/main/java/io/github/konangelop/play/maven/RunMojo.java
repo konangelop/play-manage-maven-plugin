@@ -136,7 +136,7 @@ public class RunMojo extends AbstractMojo {
         URLClassLoader serverClassLoader;
         try {
             URL[] serverUrls = buildRuntimeClasspathUrls();
-            serverClassLoader = new URLClassLoader(serverUrls, getClass().getClassLoader());
+            serverClassLoader = new ServerClassLoader(serverUrls, getClass().getClassLoader());
         } catch (Exception e) {
             throw new MojoExecutionException("Failed to build runtime classpath: " + e.getMessage(), e);
         }
@@ -213,9 +213,20 @@ public class RunMojo extends AbstractMojo {
 
     private URL[] buildRuntimeClasspathUrls() throws Exception {
         List<URL> urls = new ArrayList<>();
-        urls.add(new File(project.getBuild().getOutputDirectory()).toURI().toURL());
+        // conf/ must be on the classpath for application.conf and logback.xml
+        File confDir = new File(project.getBasedir(), "conf");
+        if (confDir.isDirectory()) {
+            urls.add(confDir.toURI().toURL());
+        }
+        // Do NOT include the output directory here — application classes go on the
+        // app classloader (created fresh on each reload) so hot-reload works.
+        // Only dependency JARs go on the server classloader.
+        String outputDir = new File(project.getBuild().getOutputDirectory()).toURI().toString();
         for (String element : project.getRuntimeClasspathElements()) {
-            urls.add(new File(element).toURI().toURL());
+            String elementUri = new File(element).toURI().toString();
+            if (!elementUri.equals(outputDir)) {
+                urls.add(new File(element).toURI().toURL());
+            }
         }
         return urls.toArray(new URL[0]);
     }

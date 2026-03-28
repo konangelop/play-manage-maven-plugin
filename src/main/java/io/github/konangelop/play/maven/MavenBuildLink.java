@@ -49,7 +49,7 @@ class MavenBuildLink implements BuildLink {
 
     final Map<String, String> devSettings = new HashMap<>();
 
-    private volatile boolean forceReload = false;
+    private volatile boolean forceReload = true; // true so first reload() provides a ClassLoader
     private volatile Throwable lastBuildError = null;
     private volatile ClassLoader currentAppClassLoader = null;
 

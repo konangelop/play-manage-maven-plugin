@@ -52,8 +52,8 @@ All source lives in `src/main/java/io/github/konangelop/play/maven/`. Each Mojo 
 
 ## Version Coordinates
 
-- Java 11 source/target
-- Scala 2.13.15, Play 2.9.6, Twirl 1.6.8, Zinc 1.10.4
+- Java 17 source/target
+- Scala 2.13.17, Play 2.9.6, Twirl 1.6.8, Zinc 1.10.4
 - Maven API 3.9.6
 
 ## Stale Branch

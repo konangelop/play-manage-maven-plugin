@@ -1,5 +1,6 @@
 package io.github.konangelop.play.maven;
 
+import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -25,6 +26,9 @@ public class CompileMojo extends AbstractMojo {
 
     @Parameter(defaultValue = "${project}", readonly = true, required = true)
     private MavenProject project;
+
+    @Parameter(defaultValue = "${plugin.artifacts}", readonly = true, required = true)
+    private List<Artifact> pluginArtifacts;
 
     /**
      * Output directory for compiled classes.
@@ -75,7 +79,7 @@ public class CompileMojo extends AbstractMojo {
 
         List<File> classpathFiles = buildClasspath();
 
-        new ZincCompilerSupport(getLog(), project.getArtifacts()).compile(
+        new ZincCompilerSupport(getLog(), project.getArtifacts(), pluginArtifacts).compile(
                 sourceFiles, classpathFiles, outputDirectory, analysisCacheFile,
                 scalacOptions, javacOptions);
 

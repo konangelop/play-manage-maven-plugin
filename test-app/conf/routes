@@ -1,0 +1,2 @@
+GET     /health     controllers.HealthController.health()
+GET     /status     controllers.HealthController.status()

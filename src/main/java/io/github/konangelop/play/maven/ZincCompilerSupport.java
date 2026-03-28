@@ -35,6 +35,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -48,10 +49,12 @@ class ZincCompilerSupport {
 
     private final Log log;
     private final Set<Artifact> projectArtifacts;
+    private final Collection<Artifact> pluginArtifacts;
 
-    ZincCompilerSupport(Log log, Set<Artifact> projectArtifacts) {
+    ZincCompilerSupport(Log log, Set<Artifact> projectArtifacts, Collection<Artifact> pluginArtifacts) {
         this.log = log;
         this.projectArtifacts = projectArtifacts;
+        this.pluginArtifacts = pluginArtifacts;
     }
 
     /**
@@ -66,11 +69,18 @@ class ZincCompilerSupport {
             File scalaCompilerJar = findScalaJar("scala-compiler");
             File scalaReflectJar = findScalaJar("scala-reflect");
 
+            File compilerBridgeJar = findArtifactJar("org.scala-sbt", "compiler-bridge_2.13");
+
             if (scalaLibraryJar == null || scalaCompilerJar == null) {
                 throw new MojoExecutionException(
                         "Could not find scala-library or scala-compiler JARs. "
                         + "Ensure org.scala-lang:scala-library and org.scala-lang:scala-compiler "
                         + "are on the project classpath.");
+            }
+            if (compilerBridgeJar == null) {
+                throw new MojoExecutionException(
+                        "Could not find compiler-bridge JAR. "
+                        + "Ensure org.scala-sbt:compiler-bridge_2.13 is available.");
             }
 
             List<File> allScalaJarsList = new ArrayList<>();
@@ -84,7 +94,7 @@ class ZincCompilerSupport {
             // Derive the version from the resolved scala-library artifact
             String scalaVersion = findScalaVersion();
             if (scalaVersion == null) {
-                scalaVersion = "2.13.15"; // fallback
+                scalaVersion = "2.13.17"; // fallback
             }
 
             ScalaInstance scalaInstance = new ScalaInstance(
@@ -99,7 +109,7 @@ class ZincCompilerSupport {
 
             IncrementalCompilerImpl compiler = new IncrementalCompilerImpl();
 
-            ScalaCompiler scalaComp = ZincUtil.scalaCompiler(scalaInstance, scalaCompilerJar);
+            ScalaCompiler scalaComp = ZincUtil.scalaCompiler(scalaInstance, compilerBridgeJar);
             Compilers compilers = compiler.compilers(scalaInstance, ClasspathOptionsUtil.boot(), scala.Option.empty(), scalaComp);
 
             VirtualFile[] sources = sourceFiles.stream()
@@ -253,9 +263,48 @@ class ZincCompilerSupport {
     }
 
     /**
-     * Finds a Scala JAR from the project's resolved Maven artifacts.
+     * Finds an artifact JAR by groupId and artifactId, checking project
+     * artifacts first then falling back to plugin artifacts.
+     */
+    private File findArtifactJar(String groupId, String artifactId) {
+        if (projectArtifacts != null) {
+            for (Artifact artifact : projectArtifacts) {
+                if (groupId.equals(artifact.getGroupId())
+                        && artifactId.equals(artifact.getArtifactId())
+                        && artifact.getFile() != null) {
+                    return artifact.getFile();
+                }
+            }
+        }
+        if (pluginArtifacts != null) {
+            for (Artifact artifact : pluginArtifacts) {
+                if (groupId.equals(artifact.getGroupId())
+                        && artifactId.equals(artifact.getArtifactId())
+                        && artifact.getFile() != null) {
+                    return artifact.getFile();
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Finds a Scala JAR, checking plugin artifacts first to ensure version
+     * consistency with the compiler bridge, then falling back to project artifacts.
      */
     private File findScalaJar(String artifactName) {
+        // Check plugin artifacts first — the ScalaInstance must use JARs matching
+        // the compiler bridge version, which comes from the plugin's dependencies
+        if (pluginArtifacts != null) {
+            for (Artifact artifact : pluginArtifacts) {
+                if ("org.scala-lang".equals(artifact.getGroupId())
+                        && artifactName.equals(artifact.getArtifactId())
+                        && artifact.getFile() != null) {
+                    return artifact.getFile();
+                }
+            }
+        }
+        // Fall back to project artifacts
         if (projectArtifacts != null) {
             for (Artifact artifact : projectArtifacts) {
                 if ("org.scala-lang".equals(artifact.getGroupId())
@@ -269,9 +318,17 @@ class ZincCompilerSupport {
     }
 
     /**
-     * Derives the Scala version from the resolved scala-library artifact.
+     * Derives the Scala version from the plugin's scala-library artifact.
      */
     private String findScalaVersion() {
+        if (pluginArtifacts != null) {
+            for (Artifact artifact : pluginArtifacts) {
+                if ("org.scala-lang".equals(artifact.getGroupId())
+                        && "scala-library".equals(artifact.getArtifactId())) {
+                    return artifact.getVersion();
+                }
+            }
+        }
         if (projectArtifacts != null) {
             for (Artifact artifact : projectArtifacts) {
                 if ("org.scala-lang".equals(artifact.getGroupId())
