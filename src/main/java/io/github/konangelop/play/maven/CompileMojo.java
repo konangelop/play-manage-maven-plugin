@@ -69,7 +69,10 @@ public class CompileMojo extends AbstractMojo {
 
         outputDirectory.mkdirs();
 
-        List<File> sourceFiles = collectSourceFiles();
+        List<String> sourceRoots = project.getCompileSourceRoots();
+        getLog().info("Compile source roots: " + sourceRoots);
+
+        List<File> sourceFiles = collectSourceFiles(sourceRoots);
         if (sourceFiles.isEmpty()) {
             getLog().info("No source files to compile");
             return;
@@ -78,6 +81,7 @@ public class CompileMojo extends AbstractMojo {
         getLog().info("Compiling " + sourceFiles.size() + " source file(s) with Zinc incremental compiler");
 
         List<File> classpathFiles = buildClasspath();
+        getLog().info("Compile classpath: " + classpathFiles.size() + " entries");
 
         new ZincCompilerSupport(getLog(), project.getArtifacts(), pluginArtifacts).compile(
                 sourceFiles, classpathFiles, outputDirectory, analysisCacheFile,
@@ -86,25 +90,29 @@ public class CompileMojo extends AbstractMojo {
         getLog().info("Compilation complete");
     }
 
-    private List<File> collectSourceFiles() {
+    private List<File> collectSourceFiles(List<String> sourceRoots) {
         List<File> sources = new ArrayList<>();
-        for (String root : project.getCompileSourceRoots()) {
+        for (String root : sourceRoots) {
             File rootDir = new File(root);
             if (rootDir.exists()) {
+                int before = sources.size();
                 ZincCompilerSupport.collectFiles(rootDir, sources, getLog(), ".java", ".scala");
+                getLog().info("  " + root + " -> " + (sources.size() - before) + " file(s)");
+            } else {
+                getLog().info("  " + root + " (does not exist, skipped)");
             }
         }
         return sources;
     }
 
-    private List<File> buildClasspath() {
+    private List<File> buildClasspath() throws MojoExecutionException {
         List<File> classpath = new ArrayList<>();
         try {
             for (String element : project.getCompileClasspathElements()) {
                 classpath.add(new File(element));
             }
         } catch (Exception e) {
-            getLog().warn("Error building classpath: " + e.getMessage());
+            throw new MojoExecutionException("Failed to resolve compile classpath: " + e.getMessage(), e);
         }
         return classpath;
     }
