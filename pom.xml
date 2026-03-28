@@ -95,6 +95,13 @@
             <version>${maven-invoker.version}</version>
         </dependency>
 
+        <!-- Play Build Link (BuildLink interface for dev mode hot reload) -->
+        <dependency>
+            <groupId>com.typesafe.play</groupId>
+            <artifactId>play-build-link</artifactId>
+            <version>${play.version}</version>
+        </dependency>
+
         <!-- Zinc Incremental Compiler for mixed Java+Scala compilation -->
         <dependency>
             <groupId>org.scala-sbt</groupId>

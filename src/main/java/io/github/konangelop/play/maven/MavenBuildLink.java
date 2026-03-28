@@ -1,0 +1,225 @@
+package io.github.konangelop.play.maven;
+
+import play.core.BuildLink;
+
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.plugin.logging.Log;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.shared.invoker.DefaultInvocationRequest;
+import org.apache.maven.shared.invoker.DefaultInvoker;
+import org.apache.maven.shared.invoker.InvocationRequest;
+import org.apache.maven.shared.invoker.InvocationResult;
+import org.apache.maven.shared.invoker.Invoker;
+import org.apache.maven.shared.invoker.MavenInvocationException;
+
+import java.io.File;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Implementation of Play's {@link BuildLink} interface for Maven-based dev mode.
+ *
+ * <p>Play calls {@link #reload()} on each HTTP request. This implementation checks
+ * the file watcher for source changes, triggers an incremental Maven rebuild if
+ * needed, and returns a fresh {@link ClassLoader} pointing to the updated classes.
+ * No JVM restart is required — Play swaps the application classloader internally.</p>
+ */
+class MavenBuildLink implements BuildLink {
+
+    private final MavenProject project;
+    private final MavenSession session;
+    private final WatchService watchService;
+    private final Map<WatchKey, Path> watchKeys;
+    private final List<Path> watchPaths;
+    private final String runGoals;
+    private final Log log;
+
+    final Map<String, String> devSettings = new HashMap<>();
+
+    private volatile boolean forceReload = false;
+    private volatile Throwable lastBuildError = null;
+    private volatile ClassLoader currentAppClassLoader = null;
+
+    MavenBuildLink(MavenProject project, MavenSession session,
+                   WatchService watchService, Map<WatchKey, Path> watchKeys,
+                   List<Path> watchPaths, String runGoals, Log log) {
+        this.project = project;
+        this.session = session;
+        this.watchService = watchService;
+        this.watchKeys = watchKeys;
+        this.watchPaths = watchPaths;
+        this.runGoals = runGoals;
+        this.log = log;
+    }
+
+    /**
+     * Called by Play on each HTTP request to check if a reload is needed.
+     *
+     * @return {@code null} if no changes, a {@link ClassLoader} if rebuild succeeded,
+     *         or a {@link Throwable} if the build failed (Play shows the error page).
+     */
+    @Override
+    public Object reload() {
+        // Check if there was a previous build error that hasn't been fixed
+        if (lastBuildError != null && !hasSourceChanges() && !forceReload) {
+            return lastBuildError;
+        }
+
+        boolean needsReload = forceReload || hasSourceChanges();
+        forceReload = false;
+
+        if (!needsReload) {
+            return null; // No changes — serve from current classloader
+        }
+
+        log.info("Source changes detected, rebuilding...");
+
+        boolean buildSuccess = invokeMavenBuild();
+
+        if (buildSuccess) {
+            lastBuildError = null;
+            log.info("Build successful, reloading application");
+            try {
+                currentAppClassLoader = createApplicationClassLoader();
+                return currentAppClassLoader;
+            } catch (Exception e) {
+                lastBuildError = e;
+                return e;
+            }
+        } else {
+            lastBuildError = new RuntimeException("Maven build failed. Check console output for details.");
+            return lastBuildError;
+        }
+    }
+
+    @Override
+    public File projectPath() {
+        return project.getBasedir();
+    }
+
+    @Override
+    public void forceReload() {
+        forceReload = true;
+    }
+
+    @Override
+    public Map<String, String> settings() {
+        return devSettings;
+    }
+
+    /**
+     * Called by Play to find the source file for a given class (for error pages).
+     *
+     * @return {@code Object[]} with {File sourceFile, Integer lineNumber}, or null.
+     */
+    @Override
+    public Object[] findSource(String className, Integer line) {
+        // Convert class name to file path and search in source directories
+        String javaPath = className.replace('.', File.separatorChar) + ".java";
+        String scalaPath = className.replace('.', File.separatorChar) + ".scala";
+
+        for (Path watchPath : watchPaths) {
+            Path javaFile = watchPath.resolve(javaPath);
+            if (Files.exists(javaFile)) {
+                return new Object[]{javaFile.toFile(), line};
+            }
+            Path scalaFile = watchPath.resolve(scalaPath);
+            if (Files.exists(scalaFile)) {
+                return new Object[]{scalaFile.toFile(), line};
+            }
+        }
+
+        // Also check main source directory
+        Path srcMain = project.getBasedir().toPath().resolve("app");
+        for (String ext : new String[]{".java", ".scala"}) {
+            Path file = srcMain.resolve(className.replace('.', File.separatorChar) + ext);
+            if (Files.exists(file)) {
+                return new Object[]{file.toFile(), line};
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Polls the WatchService for any source file changes without blocking.
+     */
+    private boolean hasSourceChanges() {
+        boolean changed = false;
+        WatchKey key;
+        while ((key = watchService.poll()) != null) {
+            Path dir = watchKeys.get(key);
+            if (dir != null) {
+                for (WatchEvent<?> event : key.pollEvents()) {
+                    if (event.kind() == StandardWatchEventKinds.OVERFLOW) continue;
+                    Path changedPath = dir.resolve((Path) event.context());
+                    String name = changedPath.getFileName().toString();
+
+                    if (isSourceFile(name)) {
+                        log.debug("Changed: " + changedPath);
+                        changed = true;
+                    }
+
+                    // Register new directories
+                    if (event.kind() == StandardWatchEventKinds.ENTRY_CREATE
+                            && Files.isDirectory(changedPath)) {
+                        try {
+                            WatchKey newKey = changedPath.register(watchService,
+                                    StandardWatchEventKinds.ENTRY_CREATE,
+                                    StandardWatchEventKinds.ENTRY_MODIFY,
+                                    StandardWatchEventKinds.ENTRY_DELETE);
+                            watchKeys.put(newKey, changedPath);
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+            }
+            key.reset();
+        }
+        return changed;
+    }
+
+    private boolean isSourceFile(String name) {
+        return name.endsWith(".java") || name.endsWith(".scala")
+                || name.endsWith(".html") || name.endsWith(".routes")
+                || name.equals("routes") || name.endsWith(".conf")
+                || name.endsWith(".xml") || name.endsWith(".txt")
+                || name.endsWith(".js");
+    }
+
+    private ClassLoader createApplicationClassLoader() throws Exception {
+        List<URL> urls = new ArrayList<>();
+        urls.add(new File(project.getBuild().getOutputDirectory()).toURI().toURL());
+        for (String element : project.getRuntimeClasspathElements()) {
+            urls.add(new File(element).toURI().toURL());
+        }
+        return new URLClassLoader(urls.toArray(new URL[0]), ClassLoader.getSystemClassLoader());
+    }
+
+    private boolean invokeMavenBuild() {
+        try {
+            InvocationRequest request = new DefaultInvocationRequest();
+            request.setPomFile(project.getFile());
+            request.setGoals(Arrays.asList(runGoals.split("\\s+")));
+            request.setBatchMode(true);
+            request.setProperties(session.getUserProperties());
+            Invoker invoker = new DefaultInvoker();
+            InvocationResult result = invoker.execute(request);
+            return result.getExitCode() == 0;
+        } catch (MavenInvocationException e) {
+            log.error("Maven invocation failed: " + e.getMessage());
+            return false;
+        }
+    }
+}
