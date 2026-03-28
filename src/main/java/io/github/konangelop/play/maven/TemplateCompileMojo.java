@@ -102,9 +102,7 @@ public class TemplateCompileMojo extends AbstractMojo {
             "java.util._",
             "play.core.j.PlayMagicForJava._",
             "play.mvc._",
-            "play.api.data.Field",
-            "play.data._",
-            "play.core.j.PlayFormsMagicForJava._"
+            "play.api.data.Field"
     );
 
     @Override
