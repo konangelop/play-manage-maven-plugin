@@ -28,8 +28,8 @@ import java.util.Map;
 
 /**
  * Compiles Play Twirl template files (.scala.html, .scala.txt, .scala.xml, .scala.js)
- * into Scala source code. Generated sources are added to the compile source roots
- * so that scala-maven-plugin can compile them with incremental compilation.
+ * into source code. Generated sources are added to the compile source roots
+ * so that the {@code compile} goal can compile them alongside Java application code.
  */
 @Mojo(name = "template-compile", defaultPhase = LifecyclePhase.GENERATE_SOURCES, threadSafe = true)
 public class TemplateCompileMojo extends AbstractMojo {

@@ -25,9 +25,9 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Compiles Play Framework routes files into Scala source code.
- * Generated sources are added to the compile source roots so that
- * scala-maven-plugin can compile them with incremental compilation.
+ * Compiles Play Framework routes files into source code for the Play router.
+ * Generated sources are added to the compile source roots so that the
+ * {@code compile} goal can compile them alongside Java application code.
  */
 @Mojo(name = "routes-compile", defaultPhase = LifecyclePhase.GENERATE_SOURCES, threadSafe = true)
 public class RoutesCompileMojo extends AbstractMojo {
