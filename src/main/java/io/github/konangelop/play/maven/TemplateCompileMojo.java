@@ -50,10 +50,18 @@ public class TemplateCompileMojo extends AbstractMojo {
     private File outputDirectory;
 
     /**
-     * Additional imports to add to generated template files.
+     * Additional imports to add to generated template files, on top of Play's defaults.
      */
     @Parameter(property = "play.templateAdditionalImports")
     private List<String> additionalImports;
+
+    /**
+     * Whether to include Play's default Java template imports
+     * (models._, controllers._, play.mvc._, play.core.j.PlayMagicForJava._, etc.).
+     * Set to false if you want full control over imports.
+     */
+    @Parameter(defaultValue = "true", property = "play.templateDefaultImports")
+    private boolean includeDefaultImports;
 
     /**
      * Constructor annotations for generated template classes (e.g., "@javax.inject.Inject()").
@@ -81,6 +89,24 @@ public class TemplateCompileMojo extends AbstractMojo {
         DEFAULT_FORMATS.put("js", "play.twirl.api.JavaScriptFormat");
     }
 
+    /**
+     * Default imports that Play's SBT plugin adds to Java templates.
+     * See play.TemplateImports in the Play Framework source.
+     */
+    private static final List<String> DEFAULT_JAVA_TEMPLATE_IMPORTS = List.of(
+            "models._",
+            "controllers._",
+            "play.api.i18n._",
+            "play.api.templates.PlayMagic._",
+            "java.lang._",
+            "java.util._",
+            "play.core.j.PlayMagicForJava._",
+            "play.mvc._",
+            "play.api.data.Field",
+            "play.data._",
+            "play.core.j.PlayFormsMagicForJava._"
+    );
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         if (skip) {
@@ -102,9 +128,7 @@ public class TemplateCompileMojo extends AbstractMojo {
         outputDirectory.mkdirs();
         project.addCompileSourceRoot(outputDirectory.getAbsolutePath());
 
-        List<String> imports = additionalImports != null ? additionalImports : new ArrayList<>();
         List<String> annotations = constructorAnnotations != null ? constructorAnnotations : new ArrayList<>();
-        Seq<String> scalaImports = CollectionConverters.asScala(imports).toList().toSeq();
         Seq<String> scalaAnnotations = CollectionConverters.asScala(annotations).toList().toSeq();
         Codec codec = Codec.apply(sourceEncoding);
 
@@ -115,6 +139,9 @@ public class TemplateCompileMojo extends AbstractMojo {
                 getLog().warn("Unknown template format for: " + templateFile.getName() + ", skipping");
                 continue;
             }
+
+            List<String> imports = buildImports(templateFile.getName());
+            Seq<String> scalaImports = CollectionConverters.asScala(imports).toList().toSeq();
 
             getLog().debug("Compiling template: " + templateFile.getAbsolutePath());
 
@@ -140,6 +167,28 @@ public class TemplateCompileMojo extends AbstractMojo {
         }
 
         getLog().info("Compiled " + compiledCount + " template file(s)");
+    }
+
+    private List<String> buildImports(String templateFileName) {
+        List<String> imports = new ArrayList<>();
+        if (includeDefaultImports) {
+            imports.addAll(DEFAULT_JAVA_TEMPLATE_IMPORTS);
+            // Play adds "views.%format%._" where %format% is e.g. "html", "txt", "xml", "js"
+            String format = getTemplateFormat(templateFileName);
+            if (format != null) {
+                imports.add("views." + format + "._");
+            }
+        }
+        if (additionalImports != null) {
+            imports.addAll(additionalImports);
+        }
+        return imports;
+    }
+
+    private String getTemplateFormat(String fileName) {
+        int scalaIdx = fileName.indexOf(".scala.");
+        if (scalaIdx < 0) return null;
+        return fileName.substring(scalaIdx + ".scala.".length());
     }
 
     private String getFormatterType(String fileName) {
