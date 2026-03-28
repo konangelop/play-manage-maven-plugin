@@ -49,7 +49,10 @@ class MavenBuildLink implements BuildLink {
 
     final Map<String, String> devSettings = new HashMap<>();
 
-    private volatile boolean forceReload = true; // true so first reload() provides a ClassLoader
+    // true so first reload() provides a ClassLoader without triggering a rebuild
+    // (the initial build already ran in RunMojo.execute())
+    private volatile boolean initialLoad = true;
+    private volatile boolean forceReload = false;
     private volatile Throwable lastBuildError = null;
     private volatile ClassLoader currentAppClassLoader = null;
 
@@ -75,6 +78,19 @@ class MavenBuildLink implements BuildLink {
      */
     @Override
     public Object reload() {
+        // On the very first reload() call, just provide a ClassLoader —
+        // the initial build already ran in RunMojo.execute(), no need to rebuild.
+        if (initialLoad) {
+            initialLoad = false;
+            try {
+                currentAppClassLoader = createApplicationClassLoader();
+                return currentAppClassLoader;
+            } catch (Exception e) {
+                lastBuildError = e;
+                return e;
+            }
+        }
+
         // Poll once to avoid draining events across two calls
         boolean changesDetected = hasSourceChanges();
 
@@ -206,10 +222,10 @@ class MavenBuildLink implements BuildLink {
 
     private boolean isSourceFile(String name) {
         return name.endsWith(".java") || name.endsWith(".scala")
-                || name.endsWith(".html") || name.endsWith(".routes")
-                || name.equals("routes") || name.endsWith(".conf")
-                || name.endsWith(".xml") || name.endsWith(".txt")
-                || name.endsWith(".js");
+                || name.endsWith(".scala.html") || name.endsWith(".scala.txt")
+                || name.endsWith(".scala.xml") || name.endsWith(".scala.js")
+                || name.endsWith(".routes") || name.equals("routes")
+                || name.endsWith(".conf");
     }
 
     private ClassLoader createApplicationClassLoader() throws Exception {
