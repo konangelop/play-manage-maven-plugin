@@ -154,22 +154,36 @@ public class RoutesCompileMojo extends AbstractMojo {
 
     /**
      * Checks if the generated output for a routes file is up-to-date by comparing
-     * the source file's last-modified time against a marker file written after
-     * successful compilation.
+     * source timestamp and configuration against a marker written after compilation.
      */
     private boolean isUpToDate(File routesFile) {
         File marker = markerFile(routesFile);
-        return marker.exists() && marker.lastModified() >= routesFile.lastModified();
+        if (!marker.exists()) return false;
+        try {
+            String cached = Files.readString(marker.toPath());
+            return cached.equals(markerContent(routesFile));
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     private void touchMarker(File routesFile) {
         File marker = markerFile(routesFile);
         marker.getParentFile().mkdirs();
         try {
-            Files.writeString(marker.toPath(), String.valueOf(routesFile.lastModified()));
+            Files.writeString(marker.toPath(), markerContent(routesFile));
         } catch (IOException e) {
             getLog().debug("Failed to write routes cache marker: " + e.getMessage());
         }
+    }
+
+    private String markerContent(File routesFile) {
+        String imports = additionalImports != null ? String.join(",", additionalImports) : "";
+        return routesFile.lastModified() + "\n"
+                + forwardsRouter + "\n"
+                + reverseRouter + "\n"
+                + namespaceReverseRouter + "\n"
+                + imports;
     }
 
     private File markerFile(File routesFile) {

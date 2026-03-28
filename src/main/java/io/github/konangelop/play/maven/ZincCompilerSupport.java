@@ -167,7 +167,7 @@ class ZincCompilerSupport {
                 public DefinesClass definesClass(VirtualFile classpathEntry) {
                     String id = classpathEntry.id();
                     return definesClassCache.computeIfAbsent(id,
-                            k -> createDefinesClass(Path.of(k)));
+                            k -> createDefinesClass(Path.of(k), log));
                 }
             };
 
@@ -360,7 +360,7 @@ class ZincCompilerSupport {
      * (stable) from source-compiled classes (may change), preventing unnecessary
      * recompilation rounds.
      */
-    private static DefinesClass createDefinesClass(Path path) {
+    private static DefinesClass createDefinesClass(Path path, Log log) {
         File file = path.toFile();
         if (file.isDirectory()) {
             return className -> {
@@ -379,7 +379,7 @@ class ZincCompilerSupport {
                     }
                 }
             } catch (IOException e) {
-                // JAR can't be read — treat as empty
+                log.warn("Failed to index JAR for incremental compilation: " + file + " (" + e.getMessage() + ")");
             }
             return classNames::contains;
         }
