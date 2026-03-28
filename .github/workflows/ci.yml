@@ -34,3 +34,18 @@ jobs:
       - name: Run dev-mode integration test
         working-directory: test-app
         run: bash test-dev-mode.sh
+
+  integration-test-java25:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 25
+          cache: maven
+      - run: mvn clean install -DskipTests
+      - name: Run dev-mode integration test (Java 25)
+        working-directory: test-app
+        run: bash test-dev-mode.sh
