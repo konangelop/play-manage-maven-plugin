@@ -96,6 +96,7 @@ public class RoutesCompileMojo extends AbstractMojo {
         }
 
         outputDirectory.mkdirs();
+        project.addCompileSourceRoot(outputDirectory.getAbsolutePath());
 
         RoutesGenerator generator = InjectedRoutesGenerator$.MODULE$;
         List<String> imports = additionalImports != null ? additionalImports : new ArrayList<>();
@@ -134,7 +135,6 @@ public class RoutesCompileMojo extends AbstractMojo {
         }
 
         getLog().info("Compiled " + compiledCount + " routes source file(s)");
-        project.addCompileSourceRoot(outputDirectory.getAbsolutePath());
     }
 
     private List<File> findRoutesFiles(File directory) {

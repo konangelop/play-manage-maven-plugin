@@ -144,7 +144,7 @@ Your project must depend on a Play server backend (e.g. `play-akka-http-server`)
 | `play.httpAddress` | `0.0.0.0` | Bind address |
 | `play.devSettings` | | Dev settings as `key1=value1,key2=value2` |
 | `play.watchDirectories` | `app`, `conf`, `public` | Directories to watch for changes |
-| `play.runGoals` | `generate-sources process-classes` | Maven goals to run on rebuild |
+| `play.runGoals` | `generate-sources compile process-classes` | Maven goals to run on rebuild |
 | `play.run.skip` | `false` | Skip the run goal |
 
 ### `start`
@@ -159,8 +159,8 @@ Starts the Play application in production mode as a background process. Writes a
 | `play.httpsPort` | `-1` | HTTPS port (`-1` to disable) |
 | `play.httpAddress` | `0.0.0.0` | Bind address |
 | `play.mainClass` | `play.core.server.ProdServerStart` | Main class |
-| `play.serverJvmArgs` | | Additional JVM arguments |
-| `play.prodSettings` | | System properties (e.g. `-Dkey=value`) |
+| `play.serverJvmArgs` | | Additional JVM arguments (list) |
+| `play.prodSettings` | | System properties as list (e.g. `-Dkey=value`) |
 | `play.startTimeout` | `30` | Seconds to wait for server readiness |
 | `play.startCheckUrl` | `/` | URL path to poll for health check (empty to skip) |
 | `play.pidFile` | `${project.build.directory}/play.pid` | PID file location |

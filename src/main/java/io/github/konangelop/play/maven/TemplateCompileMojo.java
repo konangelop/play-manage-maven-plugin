@@ -100,6 +100,7 @@ public class TemplateCompileMojo extends AbstractMojo {
         }
 
         outputDirectory.mkdirs();
+        project.addCompileSourceRoot(outputDirectory.getAbsolutePath());
 
         List<String> imports = additionalImports != null ? additionalImports : new ArrayList<>();
         List<String> annotations = constructorAnnotations != null ? constructorAnnotations : new ArrayList<>();
@@ -139,7 +140,6 @@ public class TemplateCompileMojo extends AbstractMojo {
         }
 
         getLog().info("Compiled " + compiledCount + " template file(s)");
-        project.addCompileSourceRoot(outputDirectory.getAbsolutePath());
     }
 
     private String getFormatterType(String fileName) {

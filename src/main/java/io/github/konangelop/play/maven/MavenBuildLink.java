@@ -12,7 +12,9 @@ import org.apache.maven.shared.invoker.InvocationResult;
 import org.apache.maven.shared.invoker.Invoker;
 import org.apache.maven.shared.invoker.MavenInvocationException;
 
+import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
@@ -21,7 +23,6 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -43,6 +44,7 @@ class MavenBuildLink implements BuildLink {
     private final Map<WatchKey, Path> watchKeys;
     private final List<Path> watchPaths;
     private final String runGoals;
+    private final ClassLoader serverClassLoader;
     private final Log log;
 
     final Map<String, String> devSettings = new HashMap<>();
@@ -53,13 +55,15 @@ class MavenBuildLink implements BuildLink {
 
     MavenBuildLink(MavenProject project, MavenSession session,
                    WatchService watchService, Map<WatchKey, Path> watchKeys,
-                   List<Path> watchPaths, String runGoals, Log log) {
+                   List<Path> watchPaths, String runGoals,
+                   ClassLoader serverClassLoader, Log log) {
         this.project = project;
         this.session = session;
         this.watchService = watchService;
         this.watchKeys = watchKeys;
         this.watchPaths = watchPaths;
         this.runGoals = runGoals;
+        this.serverClassLoader = serverClassLoader;
         this.log = log;
     }
 
@@ -71,12 +75,15 @@ class MavenBuildLink implements BuildLink {
      */
     @Override
     public Object reload() {
-        // Check if there was a previous build error that hasn't been fixed
-        if (lastBuildError != null && !hasSourceChanges() && !forceReload) {
+        // Poll once to avoid draining events across two calls
+        boolean changesDetected = hasSourceChanges();
+
+        // If previous build failed and no new changes, keep showing the error
+        if (lastBuildError != null && !changesDetected && !forceReload) {
             return lastBuildError;
         }
 
-        boolean needsReload = forceReload || hasSourceChanges();
+        boolean needsReload = forceReload || changesDetected;
         forceReload = false;
 
         if (!needsReload) {
@@ -91,6 +98,13 @@ class MavenBuildLink implements BuildLink {
             lastBuildError = null;
             log.info("Build successful, reloading application");
             try {
+                // Close previous app classloader to prevent Metaspace leak
+                if (currentAppClassLoader instanceof Closeable) {
+                    try {
+                        ((Closeable) currentAppClassLoader).close();
+                    } catch (IOException ignored) {
+                    }
+                }
                 currentAppClassLoader = createApplicationClassLoader();
                 return currentAppClassLoader;
             } catch (Exception e) {
@@ -199,12 +213,11 @@ class MavenBuildLink implements BuildLink {
     }
 
     private ClassLoader createApplicationClassLoader() throws Exception {
-        List<URL> urls = new ArrayList<>();
-        urls.add(new File(project.getBuild().getOutputDirectory()).toURI().toURL());
-        for (String element : project.getRuntimeClasspathElements()) {
-            urls.add(new File(element).toURI().toURL());
-        }
-        return new URLClassLoader(urls.toArray(new URL[0]), ClassLoader.getSystemClassLoader());
+        // Only the project's compiled classes go in the app classloader.
+        // Dependencies and Play framework are already on the server classloader (parent).
+        // This isolation lets Play swap the app classloader on each reload.
+        URL[] urls = { new File(project.getBuild().getOutputDirectory()).toURI().toURL() };
+        return new URLClassLoader(urls, serverClassLoader);
     }
 
     private boolean invokeMavenBuild() {

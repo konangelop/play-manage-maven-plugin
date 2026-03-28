@@ -27,8 +27,7 @@ All source lives in `src/main/java/io/github/konangelop/play/maven/`. Each Mojo 
 - `TemplateCompileMojo` (`template-compile`) — Calls `TwirlCompiler.compile()` Scala API. Scans `app/` for `.scala.html/.txt/.xml/.js` files.
 
 **Compilation phase** (`compile` / `test-compile`):
-- `CompileMojo` (`compile`) — Wraps the Zinc incremental compiler (`IncrementalCompilerImpl`) for mixed Java+Scala compilation. Manages `ScalaInstance`, `AnalysisStore` for incremental caching, and a custom `xsbti.Reporter`. Finds Scala JARs from `~/.m2/repository` or plugin classloader.
-- `TestCompileMojo` (`test-compile`) — Same Zinc setup as `compile` but for test sources. Uses `project.getTestCompileSourceRoots()` and `project.getTestClasspathElements()`. Separate analysis cache (`zinc-test-analysis`). Respects `maven.test.skip`.
+- `CompileMojo` (`compile`) and `TestCompileMojo` (`test-compile`) — Thin Mojos that delegate to `ZincCompilerSupport`, a package-private utility encapsulating the full Zinc incremental compiler pipeline (ScalaInstance, AnalysisStore, Reporter, Logger). CompileMojo uses main source roots/classpath; TestCompileMojo uses test roots/classpath and respects `maven.test.skip`.
 
 **Post-compilation phase** (`process-classes`):
 - `EnhanceClassesMojo` (`enhance-classes`) — Javassist-based; generates getter/setter methods for non-public, non-static, non-final fields.

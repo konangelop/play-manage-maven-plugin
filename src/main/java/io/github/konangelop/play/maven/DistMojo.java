@@ -112,18 +112,24 @@ public class DistMojo extends AbstractMojo {
 
             // Add the main project JAR
             File mainJar = project.getArtifact().getFile();
-            if (mainJar != null && mainJar.exists()) {
-                archiver.addFile(mainJar, topLevelDirectory + "/lib/" + mainJar.getName());
+            if (mainJar == null || !mainJar.exists()) {
+                throw new MojoFailureException(
+                        "Main project JAR not found. Ensure the project is packaged before running dist "
+                        + "(e.g., bind maven-jar-plugin to the package phase before this goal).");
             }
+            archiver.addFile(mainJar, topLevelDirectory + "/lib/" + mainJar.getName());
 
-            // Add runtime dependencies
+            // Add runtime dependencies with unique names to avoid silent overwrites
             Set<Artifact> artifacts = project.getArtifacts();
             for (Artifact artifact : artifacts) {
                 if (Artifact.SCOPE_RUNTIME.equals(artifact.getScope()) ||
                         Artifact.SCOPE_COMPILE.equals(artifact.getScope())) {
                     File file = artifact.getFile();
                     if (file != null && file.exists()) {
-                        archiver.addFile(file, topLevelDirectory + "/lib/" + file.getName());
+                        String entryName = artifact.getArtifactId() + "-" + artifact.getVersion()
+                                + (artifact.getClassifier() != null ? "-" + artifact.getClassifier() : "")
+                                + "." + artifact.getType();
+                        archiver.addFile(file, topLevelDirectory + "/lib/" + entryName);
                     }
                 }
             }

@@ -94,7 +94,7 @@ public class RunMojo extends AbstractMojo {
     /**
      * Maven goals to execute on rebuild.
      */
-    @Parameter(defaultValue = "generate-sources process-classes", property = "play.runGoals")
+    @Parameter(defaultValue = "generate-sources compile process-classes", property = "play.runGoals")
     private String runGoals;
 
     /**
@@ -131,9 +131,20 @@ public class RunMojo extends AbstractMojo {
             throw new MojoExecutionException("Failed to set up file watching: " + e.getMessage(), e);
         }
 
+        // Build the server classloader first — MavenBuildLink needs it as parent for app classloaders.
+        // Parent is the plugin classloader so BuildLink/ReloadableServer are shared.
+        URLClassLoader serverClassLoader;
+        try {
+            URL[] serverUrls = buildRuntimeClasspathUrls();
+            serverClassLoader = new URLClassLoader(serverUrls, getClass().getClassLoader());
+        } catch (Exception e) {
+            throw new MojoExecutionException("Failed to build runtime classpath: " + e.getMessage(), e);
+        }
+
         // Track source changes for the BuildLink
         MavenBuildLink buildLink = new MavenBuildLink(
-                project, session, watchService, watchKeys, watchPaths, runGoals, getLog());
+                project, session, watchService, watchKeys, watchPaths, runGoals,
+                serverClassLoader, getLog());
 
         // Parse dev settings
         if (devSettings != null && !devSettings.isEmpty()) {
@@ -146,10 +157,9 @@ public class RunMojo extends AbstractMojo {
         }
 
         // Start the Play dev server using DevServerStart via reflection
-        // (loaded from the project's classpath, not the plugin's classpath)
         ReloadableServer server;
         try {
-            server = startDevServer(buildLink);
+            server = startDevServer(buildLink, serverClassLoader);
         } catch (Exception e) {
             throw new MojoExecutionException("Failed to start Play dev server: " + e.getMessage(), e);
         }
@@ -181,27 +191,20 @@ public class RunMojo extends AbstractMojo {
         }
     }
 
-    private ReloadableServer startDevServer(BuildLink buildLink) throws Exception {
-        // Build the classpath for the server (needs play-server, play-akka-http-server, etc.)
-        URL[] urls = buildRuntimeClasspathUrls();
-        URLClassLoader serverClassLoader = new URLClassLoader(urls, ClassLoader.getSystemClassLoader());
-
+    private ReloadableServer startDevServer(BuildLink buildLink, URLClassLoader serverClassLoader) throws Exception {
         // Load DevServerStart$ singleton
         Class<?> devServerStartClass = serverClassLoader.loadClass("play.core.server.DevServerStart$");
         Object devServerStart = devServerStartClass.getField("MODULE$").get(null);
 
         if (httpsPort > 0 && httpPort > 0) {
-            // mainDevHttpAndHttpsMode(buildLink, httpPort, httpsPort, address)
             return (ReloadableServer) devServerStartClass
                     .getMethod("mainDevHttpAndHttpsMode", BuildLink.class, int.class, int.class, String.class)
                     .invoke(devServerStart, buildLink, httpPort, httpsPort, httpAddress);
         } else if (httpsPort > 0) {
-            // mainDevOnlyHttpsMode(buildLink, httpsPort, address)
             return (ReloadableServer) devServerStartClass
                     .getMethod("mainDevOnlyHttpsMode", BuildLink.class, int.class, String.class)
                     .invoke(devServerStart, buildLink, httpsPort, httpAddress);
         } else {
-            // mainDevHttpMode(buildLink, httpPort, address)
             return (ReloadableServer) devServerStartClass
                     .getMethod("mainDevHttpMode", BuildLink.class, int.class, String.class)
                     .invoke(devServerStart, buildLink, httpPort, httpAddress);

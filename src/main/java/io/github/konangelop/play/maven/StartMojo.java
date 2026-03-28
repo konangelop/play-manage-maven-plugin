@@ -15,7 +15,6 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -57,14 +56,13 @@ public class StartMojo extends AbstractMojo {
      * Additional JVM arguments for the server process.
      */
     @Parameter(property = "play.serverJvmArgs")
-    private String serverJvmArgs;
+    private List<String> serverJvmArgs;
 
     /**
-     * Production settings passed as system properties.
-     * Format: "-Dkey1=value1 -Dkey2=value2"
+     * Production settings passed as system properties (e.g. {@code -Dkey=value}).
      */
     @Parameter(property = "play.prodSettings")
-    private String prodSettings;
+    private List<String> prodSettings;
 
     /**
      * Timeout in seconds to wait for the server to start.
@@ -127,8 +125,8 @@ public class StartMojo extends AbstractMojo {
             List<String> command = new ArrayList<>();
             command.add(getJavaExecutable());
 
-            if (serverJvmArgs != null && !serverJvmArgs.isEmpty()) {
-                command.addAll(Arrays.asList(serverJvmArgs.split("\\s+")));
+            if (serverJvmArgs != null) {
+                command.addAll(serverJvmArgs);
             }
 
             command.add("-Dplay.server.http.port=" + httpPort);
@@ -137,8 +135,8 @@ public class StartMojo extends AbstractMojo {
                 command.add("-Dplay.server.https.port=" + httpsPort);
             }
 
-            if (prodSettings != null && !prodSettings.isEmpty()) {
-                command.addAll(Arrays.asList(prodSettings.split("\\s+")));
+            if (prodSettings != null) {
+                command.addAll(prodSettings);
             }
 
             command.add("-cp");
