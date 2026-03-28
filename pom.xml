@@ -25,14 +25,14 @@
         <play.version>2.9.6</play.version>
         <twirl.version>1.6.8</twirl.version>
         <scala.binary.version>2.13</scala.binary.version>
-        <scala.version>2.13.15</scala.version>
+        <scala.version>2.13.17</scala.version>
 
         <maven.version>3.9.6</maven.version>
         <maven-plugin-api.version>3.9.6</maven-plugin-api.version>
         <maven-plugin-annotations.version>3.11.0</maven-plugin-annotations.version>
         <plexus-archiver.version>4.9.1</plexus-archiver.version>
         <maven-invoker.version>3.3.0</maven-invoker.version>
-        <zinc.version>1.10.4</zinc.version>
+        <zinc.version>1.12.0</zinc.version>
     </properties>
 
     <dependencies>
@@ -107,6 +107,21 @@
             <groupId>org.scala-sbt</groupId>
             <artifactId>zinc_${scala.binary.version}</artifactId>
             <version>${zinc.version}</version>
+            <exclusions>
+                <!-- Exclude zinc's own bridge — we use scala2-sbt-bridge instead
+                     to match the exact Scala compiler version -->
+                <exclusion>
+                    <groupId>org.scala-sbt</groupId>
+                    <artifactId>compiler-bridge_${scala.binary.version}</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- Compiler bridge matching the exact Scala version (published by the Scala team) -->
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala2-sbt-bridge</artifactId>
+            <version>${scala.version}</version>
         </dependency>
 
         <!-- Scala Compiler (used by Zinc) -->

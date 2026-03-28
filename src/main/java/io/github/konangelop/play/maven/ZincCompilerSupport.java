@@ -69,7 +69,12 @@ class ZincCompilerSupport {
             File scalaCompilerJar = findScalaJar("scala-compiler");
             File scalaReflectJar = findScalaJar("scala-reflect");
 
-            File compilerBridgeJar = findArtifactJar("org.scala-sbt", "compiler-bridge_2.13");
+            // Prefer scala2-sbt-bridge (published by the Scala team, matches exact compiler version),
+            // fall back to zinc's compiler-bridge_2.13 for compatibility
+            File compilerBridgeJar = findArtifactJar("org.scala-lang", "scala2-sbt-bridge");
+            if (compilerBridgeJar == null) {
+                compilerBridgeJar = findArtifactJar("org.scala-sbt", "compiler-bridge_2.13");
+            }
 
             if (scalaLibraryJar == null || scalaCompilerJar == null) {
                 throw new MojoExecutionException(
