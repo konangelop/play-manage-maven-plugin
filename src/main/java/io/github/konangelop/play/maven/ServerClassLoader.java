@@ -24,9 +24,13 @@ class ServerClassLoader extends URLClassLoader {
             Class<?> c = findLoadedClass(name);
             if (c != null) return c;
 
-            // Always delegate to parent for JDK classes and shared interfaces
+            // Always delegate to parent for JDK classes and shared interfaces.
+            // org.xml.sax, org.w3c.dom, and javax.xml are JDK classes (java.xml module)
+            // but don't start with "java." so they need explicit delegation.
             if (name.startsWith("java.") || name.startsWith("javax.")
                     || name.startsWith("jdk.") || name.startsWith("sun.")
+                    || name.startsWith("org.xml.") || name.startsWith("org.w3c.")
+                    || name.startsWith("org.ietf.")
                     || name.startsWith("io.github.konangelop.")
                     || isSharedPlayClass(name)) {
                 return super.loadClass(name, resolve);
