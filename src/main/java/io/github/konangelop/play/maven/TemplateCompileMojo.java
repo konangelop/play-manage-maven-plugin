@@ -90,10 +90,24 @@ public class TemplateCompileMojo extends AbstractMojo {
     }
 
     /**
+     * Twirl compiler's built-in default imports. The compile() method's additionalImports
+     * parameter REPLACES these defaults (it doesn't augment them), so we must include
+     * them explicitly whenever we pass our own imports.
+     */
+    private static final List<String> TWIRL_DEFAULT_IMPORTS = List.of(
+            "_root_.play.twirl.api.TwirlFeatureImports._",
+            "_root_.play.twirl.api.TwirlHelperImports._",
+            "_root_.play.twirl.api.Html",
+            "_root_.play.twirl.api.JavaScript",
+            "_root_.play.twirl.api.Txt",
+            "_root_.play.twirl.api.Xml"
+    );
+
+    /**
      * Default imports that Play's SBT plugin adds to Java templates.
      * See play.TemplateImports in the Play Framework source.
      */
-    private static final List<String> DEFAULT_JAVA_TEMPLATE_IMPORTS = List.of(
+    private static final List<String> PLAY_JAVA_TEMPLATE_IMPORTS = List.of(
             "models._",
             "controllers._",
             "play.api.i18n._",
@@ -169,8 +183,11 @@ public class TemplateCompileMojo extends AbstractMojo {
 
     private List<String> buildImports(String templateFileName) {
         List<String> imports = new ArrayList<>();
+        // Twirl's compile() additionalImports parameter REPLACES the built-in defaults,
+        // so we must always include them explicitly.
+        imports.addAll(TWIRL_DEFAULT_IMPORTS);
         if (includeDefaultImports) {
-            imports.addAll(DEFAULT_JAVA_TEMPLATE_IMPORTS);
+            imports.addAll(PLAY_JAVA_TEMPLATE_IMPORTS);
             // Play adds "views.%format%._" where %format% is e.g. "html", "txt", "xml", "js"
             String format = getTemplateFormat(templateFileName);
             if (format != null) {
