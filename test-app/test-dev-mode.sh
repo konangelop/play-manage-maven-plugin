@@ -58,7 +58,13 @@ poll_until() {
 }
 
 # ------------------------------------------------------------------
-# Step 0: Build the test app (routes, templates, compile)
+# Step 0a: Reset source files to v1 (idempotent)
+# ------------------------------------------------------------------
+sed -i 's/healthy-v2/healthy-v1/' app/controllers/HealthController.java
+sed -i 's/status-v2/status-v1/' app/views/status.scala.html
+
+# ------------------------------------------------------------------
+# Step 0b: Build the test app (routes, templates, compile)
 # ------------------------------------------------------------------
 echo "=== Building test app ==="
 mvn -q generate-sources compile process-classes
