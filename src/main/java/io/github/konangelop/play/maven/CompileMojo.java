@@ -82,6 +82,19 @@ public class CompileMojo extends AbstractMojo {
 
         List<File> classpathFiles = buildClasspath();
         getLog().info("Compile classpath: " + classpathFiles.size() + " entries");
+        boolean foundTwirlApi = false;
+        boolean foundScalaLibrary = false;
+        boolean foundPlay = false;
+        for (File cp : classpathFiles) {
+            String name = cp.getName();
+            getLog().debug("  classpath: " + cp);
+            if (name.startsWith("twirl-api")) foundTwirlApi = true;
+            if (name.startsWith("scala-library")) foundScalaLibrary = true;
+            if (name.startsWith("play_") || name.startsWith("play-java")) foundPlay = true;
+        }
+        if (!foundTwirlApi) getLog().warn("twirl-api not found on compile classpath — generated templates will fail to compile");
+        if (!foundScalaLibrary) getLog().warn("scala-library not found on compile classpath");
+        if (!foundPlay) getLog().warn("play framework jars not found on compile classpath");
 
         new ZincCompilerSupport(getLog(), project.getArtifacts(), pluginArtifacts).compile(
                 sourceFiles, classpathFiles, outputDirectory, analysisCacheFile,
