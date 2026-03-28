@@ -94,7 +94,7 @@ public class RunMojo extends AbstractMojo {
     /**
      * Maven goals to execute on rebuild.
      */
-    @Parameter(defaultValue = "generate-sources compile process-classes", property = "play.runGoals")
+    @Parameter(defaultValue = "process-classes", property = "play.runGoals")
     private String runGoals;
 
     /**
