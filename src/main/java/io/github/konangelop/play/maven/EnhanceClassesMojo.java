@@ -116,12 +116,17 @@ public class EnhanceClassesMojo extends AbstractMojo {
             String capitalizedName = Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
             String getterName = "get" + capitalizedName;
             String setterName = "set" + capitalizedName;
+            boolean isBooleanField = field.getType() == CtClass.booleanType
+                    || "java.lang.Boolean".equals(field.getType().getName());
+            String isGetterName = "is" + capitalizedName;
 
             // Convert JVM type name to Java source syntax (e.g. [Ljava.lang.String; → java.lang.String[])
             String typeName = toJavaSourceTypeName(field.getType());
 
-            // Generate getter if it doesn't exist
-            if (!hasMethod(ctClass, getterName, 0)) {
+            // Generate getter if neither getXxx() nor isXxx() (for booleans) exists
+            boolean hasGetter = hasMethod(ctClass, getterName, 0);
+            boolean hasIsGetter = isBooleanField && hasMethod(ctClass, isGetterName, 0);
+            if (!hasGetter && !hasIsGetter) {
                 String getterBody = "public " + typeName + " " + getterName + "() { return this." + fieldName + "; }";
                 CtMethod getter = CtNewMethod.make(getterBody, ctClass);
                 ctClass.addMethod(getter);
