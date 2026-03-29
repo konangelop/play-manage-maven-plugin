@@ -136,7 +136,7 @@ public class RunMojo extends AbstractMojo {
         URLClassLoader serverClassLoader;
         try {
             URL[] serverUrls = buildRuntimeClasspathUrls();
-            serverClassLoader = new ServerClassLoader(serverUrls, getClass().getClassLoader());
+            serverClassLoader = ServerClassLoader.create(serverUrls, getClass().getClassLoader());
         } catch (Exception e) {
             throw new MojoExecutionException("Failed to build runtime classpath: " + e.getMessage(), e);
         }
