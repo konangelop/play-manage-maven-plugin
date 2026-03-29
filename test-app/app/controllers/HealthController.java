@@ -1,17 +1,18 @@
 package controllers;
 
 import javax.inject.Inject;
+import javax.inject.Provider;
 import play.mvc.Controller;
 import play.mvc.Result;
 import com.typesafe.config.Config;
 
 public class HealthController extends Controller {
 
-    private final Config config;
+    private final Provider<Config> configProvider;
 
     @Inject
-    public HealthController(Config config) {
-        this.config = config;
+    public HealthController(Provider<Config> configProvider) {
+        this.configProvider = configProvider;
     }
 
     public Result health() {
