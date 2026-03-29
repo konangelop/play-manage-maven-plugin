@@ -219,16 +219,13 @@ public class RunMojo extends AbstractMojo {
         if (confDir.isDirectory()) {
             urls.add(confDir.toURI().toURL());
         }
-        // target/classes must be on the server classloader because Play initializes
-        // logback BEFORE the first reload() call. Logback parses logback.xml (from
-        // conf/) and may reference application classes (e.g., custom filters/appenders).
-        // Without target/classes here, those classes fail with ClassNotFoundException.
-        // The app classloader (created per-reload) also includes target/classes so
-        // hot-reloaded application code still works correctly.
-        File outputDir = new File(project.getBuild().getOutputDirectory());
-        if (outputDir.isDirectory()) {
-            urls.add(outputDir.toURI().toURL());
-        }
+        // Do NOT include target/classes here. Application classes must only be on the
+        // app classloader (created fresh per-reload in MavenBuildLink). If target/classes
+        // is on the server classloader, loaded classes are cached and never refreshed,
+        // breaking hot-reload. Logback may warn about app classes it can't find during
+        // early init (e.g., custom filters) — this is harmless; the app classloader
+        // resolves them when Play calls reload().
+        //
         // Include ALL non-test dependency JARs — compile, provided, runtime, and system.
         // getRuntimeClasspathElements() excludes "provided" scope, but in dev mode there
         // is no separate container to provide them, so we need everything.
