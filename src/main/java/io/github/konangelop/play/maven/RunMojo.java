@@ -3,7 +3,6 @@ package io.github.konangelop.play.maven;
 import play.core.BuildLink;
 import play.core.server.ReloadableServer;
 
-import org.apache.maven.artifact.Artifact;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -137,7 +136,7 @@ public class RunMojo extends AbstractMojo {
         URLClassLoader serverClassLoader;
         try {
             URL[] serverUrls = buildRuntimeClasspathUrls();
-            serverClassLoader = ServerClassLoader.create(serverUrls, getClass().getClassLoader());
+            serverClassLoader = new ServerClassLoader(serverUrls, getClass().getClassLoader());
         } catch (Exception e) {
             throw new MojoExecutionException("Failed to build runtime classpath: " + e.getMessage(), e);
         }
@@ -219,26 +218,16 @@ public class RunMojo extends AbstractMojo {
         if (confDir.isDirectory()) {
             urls.add(confDir.toURI().toURL());
         }
-        // Do NOT include target/classes here. Application classes must only be on the
-        // app classloader (created fresh per-reload in MavenBuildLink). If target/classes
-        // is on the server classloader, loaded classes are cached and never refreshed,
-        // breaking hot-reload. Logback may warn about app classes it can't find during
-        // early init (e.g., custom filters) — this is harmless; the app classloader
-        // resolves them when Play calls reload().
-        //
-        // Include ALL non-test dependency JARs — compile, provided, runtime, and system.
-        // getRuntimeClasspathElements() excludes "provided" scope, but in dev mode there
-        // is no separate container to provide them, so we need everything.
-        // The old plugin's child-first classloader got provided deps "for free" via
-        // Maven's ClassRealm parent; with null-parent isolation we must include them
-        // explicitly.
-        for (Artifact artifact : project.getArtifacts()) {
-            String scope = artifact.getScope();
-            if (!"test".equals(scope) && artifact.getFile() != null) {
-                urls.add(artifact.getFile().toURI().toURL());
+        // Do NOT include the output directory here — application classes go on the
+        // app classloader (created fresh on each reload) so hot-reload works.
+        // Only dependency JARs go on the server classloader.
+        String outputDir = new File(project.getBuild().getOutputDirectory()).toURI().toString();
+        for (String element : project.getRuntimeClasspathElements()) {
+            String elementUri = new File(element).toURI().toString();
+            if (!elementUri.equals(outputDir)) {
+                urls.add(new File(element).toURI().toURL());
             }
         }
-        getLog().debug("Server classloader: " + urls.size() + " entries");
         return urls.toArray(new URL[0]);
     }
 
