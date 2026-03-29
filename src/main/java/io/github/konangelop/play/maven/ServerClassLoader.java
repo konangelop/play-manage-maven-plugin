@@ -2,8 +2,6 @@ package io.github.konangelop.play.maven;
 
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.util.Enumeration;
-import java.util.NoSuchElementException;
 
 /**
  * Classloader setup for the Play dev server, matching the architecture from
@@ -76,19 +74,6 @@ class ServerClassLoader {
             }
 
             throw new ClassNotFoundException(name);
-        }
-
-        @Override
-        public URL getResource(String name) {
-            return null;
-        }
-
-        @Override
-        public Enumeration<URL> getResources(String name) {
-            return new Enumeration<>() {
-                @Override public boolean hasMoreElements() { return false; }
-                @Override public URL nextElement() { throw new NoSuchElementException(); }
-            };
         }
 
         /**

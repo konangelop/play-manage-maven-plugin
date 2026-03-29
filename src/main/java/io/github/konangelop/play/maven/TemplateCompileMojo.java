@@ -58,7 +58,8 @@ public class TemplateCompileMojo extends AbstractMojo {
     /**
      * Whether to include Play's default Java template imports
      * (models._, controllers._, play.mvc._, play.core.j.PlayMagicForJava._, etc.).
-     * Set to false if you want full control over imports.
+     * This flag only controls Play's additional default imports; Twirl's own default
+     * imports are always included and are not affected by this setting.
      */
     @Parameter(defaultValue = "true", property = "play.templateDefaultImports")
     private boolean includeDefaultImports;

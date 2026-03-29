@@ -159,6 +159,11 @@ public class RoutesCompileMojo extends AbstractMojo {
     private boolean isUpToDate(File routesFile) {
         File marker = markerFile(routesFile);
         if (!marker.exists()) return false;
+        // If output directory was cleaned but markers remain, force recompile
+        if (!outputDirectory.exists() || outputDirectory.list() == null
+                || outputDirectory.list().length <= 1) { // only .cache/ or empty
+            return false;
+        }
         try {
             String cached = Files.readString(marker.toPath());
             return cached.equals(markerContent(routesFile));

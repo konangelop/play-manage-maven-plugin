@@ -70,7 +70,7 @@ public class CompileMojo extends AbstractMojo {
         outputDirectory.mkdirs();
 
         List<String> sourceRoots = project.getCompileSourceRoots();
-        getLog().info("Compile source roots: " + sourceRoots);
+        getLog().debug("Compile source roots: " + sourceRoots);
 
         List<File> sourceFiles = collectSourceFiles(sourceRoots);
         if (sourceFiles.isEmpty()) {
@@ -81,7 +81,7 @@ public class CompileMojo extends AbstractMojo {
         getLog().info("Compiling " + sourceFiles.size() + " source file(s) with Zinc incremental compiler");
 
         List<File> classpathFiles = buildClasspath();
-        getLog().info("Compile classpath: " + classpathFiles.size() + " entries");
+        getLog().debug("Compile classpath: " + classpathFiles.size() + " entries");
         boolean foundTwirlApi = false;
         boolean foundScalaLibrary = false;
         boolean foundPlay = false;
@@ -110,9 +110,9 @@ public class CompileMojo extends AbstractMojo {
             if (rootDir.exists()) {
                 int before = sources.size();
                 ZincCompilerSupport.collectFiles(rootDir, sources, getLog(), ".java", ".scala");
-                getLog().info("  " + root + " -> " + (sources.size() - before) + " file(s)");
+                getLog().debug("  " + root + " -> " + (sources.size() - before) + " file(s)");
             } else {
-                getLog().info("  " + root + " (does not exist, skipped)");
+                getLog().debug("  " + root + " (does not exist, skipped)");
             }
         }
         return sources;
