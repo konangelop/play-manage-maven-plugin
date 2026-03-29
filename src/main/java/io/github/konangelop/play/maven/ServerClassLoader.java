@@ -1,6 +1,5 @@
 package io.github.konangelop.play.maven;
 
-import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Enumeration;
@@ -58,8 +57,11 @@ class ServerClassLoader {
 
         @Override
         protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-            // JDK classes — delegate to bootstrap/platform loader
-            if (name.startsWith("java.") || name.startsWith("javax.")
+            // JDK classes — delegate to bootstrap/platform loader.
+            // Important: javax.inject, javax.persistence, javax.annotation etc. are
+            // NOT JDK classes — they're third-party (Jakarta EE / JSR-330) and must
+            // be loaded from the dependency JARs, not the platform classloader.
+            if (name.startsWith("java.") || isJdkJavaxClass(name)
                     || name.startsWith("jdk.") || name.startsWith("sun.")
                     || name.startsWith("org.xml.") || name.startsWith("org.w3c.")
                     || name.startsWith("org.ietf.")) {
@@ -87,6 +89,32 @@ class ServerClassLoader {
                 @Override public boolean hasMoreElements() { return false; }
                 @Override public URL nextElement() { throw new NoSuchElementException(); }
             };
+        }
+
+        /**
+         * Returns true only for javax.* packages that are part of the JDK
+         * (java.xml, java.sql, java.crypto, etc.). Third-party javax packages
+         * like javax.inject, javax.persistence, javax.annotation are NOT JDK
+         * classes and must be loaded from the project's dependency JARs.
+         */
+        private static boolean isJdkJavaxClass(String name) {
+            if (!name.startsWith("javax.")) return false;
+            return name.startsWith("javax.crypto.")
+                    || name.startsWith("javax.net.")
+                    || name.startsWith("javax.security.")
+                    || name.startsWith("javax.xml.")
+                    || name.startsWith("javax.sql.")
+                    || name.startsWith("javax.naming.")
+                    || name.startsWith("javax.management.")
+                    || name.startsWith("javax.lang.model.")
+                    || name.startsWith("javax.tools.")
+                    || name.startsWith("javax.annotation.processing.")
+                    || name.startsWith("javax.accessibility.")
+                    || name.startsWith("javax.imageio.")
+                    || name.startsWith("javax.print.")
+                    || name.startsWith("javax.sound.")
+                    || name.startsWith("javax.swing.")
+                    || name.startsWith("javax.script.");
         }
 
         private static boolean isSharedClass(String name) {
