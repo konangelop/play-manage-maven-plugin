@@ -7,7 +7,7 @@
     <groupId>io.github.konangelop.test</groupId>
     <artifactId>play-manage-test-app</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <packaging>play2</packaging>
+    <packaging>play-management</packaging>
 
     <name>Play Manage Plugin - Test App</name>
     <description>Minimal Play Java app for integration testing the play-manage-maven-plugin.</description>

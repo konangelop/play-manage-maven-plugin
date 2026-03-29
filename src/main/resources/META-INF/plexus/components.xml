@@ -2,13 +2,13 @@
 <component-set>
   <components>
 
-    <!-- Artifact handler: play2 packaging produces a .jar file -->
+    <!-- Artifact handler: play-management packaging produces a .jar file -->
     <component>
       <role>org.apache.maven.artifact.handler.ArtifactHandler</role>
-      <role-hint>play2</role-hint>
+      <role-hint>play-management</role-hint>
       <implementation>org.apache.maven.artifact.handler.DefaultArtifactHandler</implementation>
       <configuration>
-        <type>play2</type>
+        <type>play-management</type>
         <extension>jar</extension>
         <language>java</language>
         <addedToClasspath>true</addedToClasspath>
@@ -16,10 +16,10 @@
       </configuration>
     </component>
 
-    <!-- Lifecycle mapping for play2 packaging -->
+    <!-- Lifecycle mapping for play-management packaging -->
     <component>
       <role>org.apache.maven.lifecycle.mapping.LifecycleMapping</role>
-      <role-hint>play2</role-hint>
+      <role-hint>play-management</role-hint>
       <implementation>org.apache.maven.lifecycle.mapping.DefaultLifecycleMapping</implementation>
       <configuration>
         <lifecycles>
