@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component-set>
+  <components>
+
+    <!-- Artifact handler: play-management packaging produces a .jar file -->
+    <component>
+      <role>org.apache.maven.artifact.handler.ArtifactHandler</role>
+      <role-hint>play-management</role-hint>
+      <implementation>org.apache.maven.artifact.handler.DefaultArtifactHandler</implementation>
+      <configuration>
+        <type>play-management</type>
+        <extension>jar</extension>
+        <language>java</language>
+        <addedToClasspath>true</addedToClasspath>
+        <includesDependencies>false</includesDependencies>
+      </configuration>
+    </component>
+
+    <!-- Lifecycle mapping for play-management packaging -->
+    <component>
+      <role>org.apache.maven.lifecycle.mapping.LifecycleMapping</role>
+      <role-hint>play-management</role-hint>
+      <implementation>org.apache.maven.lifecycle.mapping.DefaultLifecycleMapping</implementation>
+      <configuration>
+        <lifecycles>
+          <lifecycle>
+            <id>default</id>
+            <phases>
+              <generate-sources>
+                io.github.konangelop:play-manage-maven-plugin:routes-compile,
+                io.github.konangelop:play-manage-maven-plugin:template-compile
+              </generate-sources>
+              <process-resources>
+                org.apache.maven.plugins:maven-resources-plugin:resources
+              </process-resources>
+              <compile>
+                io.github.konangelop:play-manage-maven-plugin:compile
+              </compile>
+              <process-classes>
+                io.github.konangelop:play-manage-maven-plugin:enhance-classes
+              </process-classes>
+              <process-test-resources>
+                org.apache.maven.plugins:maven-resources-plugin:testResources
+              </process-test-resources>
+              <test-compile>
+                io.github.konangelop:play-manage-maven-plugin:test-compile
+              </test-compile>
+              <test>
+                org.apache.maven.plugins:maven-surefire-plugin:test
+              </test>
+              <package>
+                org.apache.maven.plugins:maven-jar-plugin:jar,
+                io.github.konangelop:play-manage-maven-plugin:dist
+              </package>
+              <install>
+                org.apache.maven.plugins:maven-install-plugin:install
+              </install>
+              <deploy>
+                org.apache.maven.plugins:maven-deploy-plugin:deploy
+              </deploy>
+            </phases>
+          </lifecycle>
+        </lifecycles>
+      </configuration>
+    </component>
+
+  </components>
+</component-set>

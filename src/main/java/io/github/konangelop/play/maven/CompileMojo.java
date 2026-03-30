@@ -69,7 +69,10 @@ public class CompileMojo extends AbstractMojo {
 
         outputDirectory.mkdirs();
 
-        List<File> sourceFiles = collectSourceFiles();
+        List<String> sourceRoots = project.getCompileSourceRoots();
+        getLog().debug("Compile source roots: " + sourceRoots);
+
+        List<File> sourceFiles = collectSourceFiles(sourceRoots);
         if (sourceFiles.isEmpty()) {
             getLog().info("No source files to compile");
             return;
@@ -78,6 +81,20 @@ public class CompileMojo extends AbstractMojo {
         getLog().info("Compiling " + sourceFiles.size() + " source file(s) with Zinc incremental compiler");
 
         List<File> classpathFiles = buildClasspath();
+        getLog().debug("Compile classpath: " + classpathFiles.size() + " entries");
+        boolean foundTwirlApi = false;
+        boolean foundScalaLibrary = false;
+        boolean foundPlay = false;
+        for (File cp : classpathFiles) {
+            String name = cp.getName();
+            getLog().debug("  classpath: " + cp);
+            if (name.startsWith("twirl-api")) foundTwirlApi = true;
+            if (name.startsWith("scala-library")) foundScalaLibrary = true;
+            if (name.startsWith("play_") || name.startsWith("play-java")) foundPlay = true;
+        }
+        if (!foundTwirlApi) getLog().warn("twirl-api not found on compile classpath — generated templates will fail to compile");
+        if (!foundScalaLibrary) getLog().warn("scala-library not found on compile classpath");
+        if (!foundPlay) getLog().warn("play framework jars not found on compile classpath");
 
         new ZincCompilerSupport(getLog(), project.getArtifacts(), pluginArtifacts).compile(
                 sourceFiles, classpathFiles, outputDirectory, analysisCacheFile,
@@ -86,25 +103,29 @@ public class CompileMojo extends AbstractMojo {
         getLog().info("Compilation complete");
     }
 
-    private List<File> collectSourceFiles() {
+    private List<File> collectSourceFiles(List<String> sourceRoots) {
         List<File> sources = new ArrayList<>();
-        for (String root : project.getCompileSourceRoots()) {
+        for (String root : sourceRoots) {
             File rootDir = new File(root);
             if (rootDir.exists()) {
+                int before = sources.size();
                 ZincCompilerSupport.collectFiles(rootDir, sources, getLog(), ".java", ".scala");
+                getLog().debug("  " + root + " -> " + (sources.size() - before) + " file(s)");
+            } else {
+                getLog().debug("  " + root + " (does not exist, skipped)");
             }
         }
         return sources;
     }
 
-    private List<File> buildClasspath() {
+    private List<File> buildClasspath() throws MojoExecutionException {
         List<File> classpath = new ArrayList<>();
         try {
             for (String element : project.getCompileClasspathElements()) {
                 classpath.add(new File(element));
             }
         } catch (Exception e) {
-            getLog().warn("Error building classpath: " + e.getMessage());
+            throw new MojoExecutionException("Failed to resolve compile classpath: " + e.getMessage(), e);
         }
         return classpath;
     }

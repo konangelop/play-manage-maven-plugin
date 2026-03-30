@@ -102,14 +102,14 @@ public class TestCompileMojo extends AbstractMojo {
         return sources;
     }
 
-    private List<File> buildTestClasspath() {
+    private List<File> buildTestClasspath() throws MojoExecutionException {
         List<File> classpath = new ArrayList<>();
         try {
             for (String element : project.getTestClasspathElements()) {
                 classpath.add(new File(element));
             }
         } catch (Exception e) {
-            getLog().warn("Error building test classpath: " + e.getMessage());
+            throw new MojoExecutionException("Failed to resolve test classpath: " + e.getMessage(), e);
         }
         return classpath;
     }

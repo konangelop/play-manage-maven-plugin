@@ -50,10 +50,19 @@ public class TemplateCompileMojo extends AbstractMojo {
     private File outputDirectory;
 
     /**
-     * Additional imports to add to generated template files.
+     * Additional imports to add to generated template files, on top of Play's defaults.
      */
     @Parameter(property = "play.templateAdditionalImports")
     private List<String> additionalImports;
+
+    /**
+     * Whether to include Play's default Java template imports
+     * (models._, controllers._, play.mvc._, play.core.j.PlayMagicForJava._, etc.).
+     * This flag only controls Play's additional default imports; Twirl's own default
+     * imports are always included and are not affected by this setting.
+     */
+    @Parameter(defaultValue = "true", property = "play.templateDefaultImports")
+    private boolean includeDefaultImports;
 
     /**
      * Constructor annotations for generated template classes (e.g., "@javax.inject.Inject()").
@@ -81,6 +90,36 @@ public class TemplateCompileMojo extends AbstractMojo {
         DEFAULT_FORMATS.put("js", "play.twirl.api.JavaScriptFormat");
     }
 
+    /**
+     * Twirl compiler's built-in default imports. The compile() method's additionalImports
+     * parameter REPLACES these defaults (it doesn't augment them), so we must include
+     * them explicitly whenever we pass our own imports.
+     */
+    private static final List<String> TWIRL_DEFAULT_IMPORTS = List.of(
+            "_root_.play.twirl.api.TwirlFeatureImports._",
+            "_root_.play.twirl.api.TwirlHelperImports._",
+            "_root_.play.twirl.api.Html",
+            "_root_.play.twirl.api.JavaScript",
+            "_root_.play.twirl.api.Txt",
+            "_root_.play.twirl.api.Xml"
+    );
+
+    /**
+     * Default imports that Play's SBT plugin adds to Java templates.
+     * See play.TemplateImports in the Play Framework source.
+     */
+    private static final List<String> PLAY_JAVA_TEMPLATE_IMPORTS = List.of(
+            "models._",
+            "controllers._",
+            "play.api.i18n._",
+            "play.api.templates.PlayMagic._",
+            "java.lang._",
+            "java.util._",
+            "play.core.j.PlayMagicForJava._",
+            "play.mvc._",
+            "play.api.data.Field"
+    );
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         if (skip) {
@@ -102,13 +141,12 @@ public class TemplateCompileMojo extends AbstractMojo {
         outputDirectory.mkdirs();
         project.addCompileSourceRoot(outputDirectory.getAbsolutePath());
 
-        List<String> imports = additionalImports != null ? additionalImports : new ArrayList<>();
         List<String> annotations = constructorAnnotations != null ? constructorAnnotations : new ArrayList<>();
-        Seq<String> scalaImports = CollectionConverters.asScala(imports).toList().toSeq();
         Seq<String> scalaAnnotations = CollectionConverters.asScala(annotations).toList().toSeq();
         Codec codec = Codec.apply(sourceEncoding);
 
         int compiledCount = 0;
+        int upToDateCount = 0;
         for (File templateFile : templateFiles) {
             String formatterType = getFormatterType(templateFile.getName());
             if (formatterType == null) {
@@ -116,9 +154,14 @@ public class TemplateCompileMojo extends AbstractMojo {
                 continue;
             }
 
+            List<String> imports = buildImports(templateFile.getName());
+            Seq<String> scalaImports = CollectionConverters.asScala(imports).toList().toSeq();
+
             getLog().debug("Compiling template: " + templateFile.getAbsolutePath());
 
             try {
+                // TwirlCompiler.compile() has built-in timestamp checking:
+                // returns Some(file) if regenerated, None if the output is up-to-date.
                 Option<File> result = TwirlCompiler.compile(
                         templateFile,
                         sourceDirectory,
@@ -133,13 +176,45 @@ public class TemplateCompileMojo extends AbstractMojo {
                 if (result.isDefined()) {
                     compiledCount++;
                     getLog().debug("Generated: " + result.get().getAbsolutePath());
+                } else {
+                    upToDateCount++;
                 }
             } catch (Exception e) {
                 throw new MojoFailureException("Failed to compile template " + templateFile.getAbsolutePath() + ": " + e.getMessage(), e);
             }
         }
 
-        getLog().info("Compiled " + compiledCount + " template file(s)");
+        if (compiledCount > 0) {
+            getLog().info("Compiled " + compiledCount + " template file(s)" +
+                    (upToDateCount > 0 ? ", " + upToDateCount + " up-to-date" : ""));
+        } else {
+            getLog().info("All " + upToDateCount + " template file(s) are up-to-date");
+        }
+    }
+
+    private List<String> buildImports(String templateFileName) {
+        List<String> imports = new ArrayList<>();
+        // Twirl's compile() additionalImports parameter REPLACES the built-in defaults,
+        // so we must always include them explicitly.
+        imports.addAll(TWIRL_DEFAULT_IMPORTS);
+        if (includeDefaultImports) {
+            imports.addAll(PLAY_JAVA_TEMPLATE_IMPORTS);
+            // Play adds "views.%format%._" where %format% is e.g. "html", "txt", "xml", "js"
+            String format = getTemplateFormat(templateFileName);
+            if (format != null) {
+                imports.add("views." + format + "._");
+            }
+        }
+        if (additionalImports != null) {
+            imports.addAll(additionalImports);
+        }
+        return imports;
+    }
+
+    private String getTemplateFormat(String fileName) {
+        int scalaIdx = fileName.indexOf(".scala.");
+        if (scalaIdx < 0) return null;
+        return fileName.substring(scalaIdx + ".scala.".length());
     }
 
     private String getFormatterType(String fileName) {

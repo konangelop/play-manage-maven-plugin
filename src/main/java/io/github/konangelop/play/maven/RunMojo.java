@@ -3,6 +3,7 @@ package io.github.konangelop.play.maven;
 import play.core.BuildLink;
 import play.core.server.ReloadableServer;
 
+import org.apache.maven.artifact.Artifact;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -94,7 +95,7 @@ public class RunMojo extends AbstractMojo {
     /**
      * Maven goals to execute on rebuild.
      */
-    @Parameter(defaultValue = "generate-sources compile process-classes", property = "play.runGoals")
+    @Parameter(defaultValue = "process-classes", property = "play.runGoals")
     private String runGoals;
 
     /**
@@ -213,19 +214,20 @@ public class RunMojo extends AbstractMojo {
 
     private URL[] buildRuntimeClasspathUrls() throws Exception {
         List<URL> urls = new ArrayList<>();
-        // conf/ must be on the classpath for application.conf and logback.xml
-        File confDir = new File(project.getBasedir(), "conf");
-        if (confDir.isDirectory()) {
-            urls.add(confDir.toURI().toURL());
-        }
-        // Do NOT include the output directory here — application classes go on the
-        // app classloader (created fresh on each reload) so hot-reload works.
+        // conf/ is NOT added here — matching the old plugin's behavior.
+        // conf/ should be configured as a Maven resource directory in the consumer
+        // project's POM so maven-resources-plugin copies it to target/classes.
+        // Adding conf/ separately would cause duplicate resources (e.g., persistence.xml
+        // found in both conf/ on the server classloader and target/classes on the app
+        // classloader).
+
         // Only dependency JARs go on the server classloader.
-        String outputDir = new File(project.getBuild().getOutputDirectory()).toURI().toString();
-        for (String element : project.getRuntimeClasspathElements()) {
-            String elementUri = new File(element).toURI().toString();
-            if (!elementUri.equals(outputDir)) {
-                urls.add(new File(element).toURI().toURL());
+        // Use project.getArtifacts() (resolved dependency artifacts) matching
+        // the old plugin's approach. Do not include the output directory —
+        // application classes go on the app classloader (created fresh on each reload).
+        for (Artifact artifact : project.getArtifacts()) {
+            if (artifact.getFile() != null) {
+                urls.add(artifact.getFile().toURI().toURL());
             }
         }
         return urls.toArray(new URL[0]);

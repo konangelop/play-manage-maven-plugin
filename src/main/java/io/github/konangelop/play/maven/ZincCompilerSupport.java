@@ -36,10 +36,15 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 /**
  * Shared Zinc incremental compiler infrastructure used by both
@@ -151,6 +156,7 @@ class ZincCompilerSupport {
                 previousResult = PreviousResult.of(Optional.empty(), Optional.empty());
             }
 
+            Map<String, DefinesClass> definesClassCache = new HashMap<>();
             PerClasspathEntryLookup lookup = new PerClasspathEntryLookup() {
                 @Override
                 public Optional<CompileAnalysis> analysis(VirtualFile classpathEntry) {
@@ -159,7 +165,9 @@ class ZincCompilerSupport {
 
                 @Override
                 public DefinesClass definesClass(VirtualFile classpathEntry) {
-                    return name -> false;
+                    String id = classpathEntry.id();
+                    return definesClassCache.computeIfAbsent(id,
+                            k -> createDefinesClass(Path.of(k), log));
                 }
             };
 
@@ -343,6 +351,39 @@ class ZincCompilerSupport {
             }
         }
         return null;
+    }
+
+    /**
+     * Creates a DefinesClass for a classpath entry. For directories, checks if
+     * the .class file exists on disk. For JARs, loads the entry index into a
+     * HashSet for O(1) lookups. This lets Zinc distinguish external dependencies
+     * (stable) from source-compiled classes (may change), preventing unnecessary
+     * recompilation rounds.
+     */
+    private static DefinesClass createDefinesClass(Path path, Log log) {
+        File file = path.toFile();
+        if (file.isDirectory()) {
+            return className -> {
+                String relativePath = className.replace('.', File.separatorChar) + ".class";
+                return new File(file, relativePath).isFile();
+            };
+        } else if (file.isFile() && file.getName().endsWith(".jar")) {
+            Set<String> classNames = new HashSet<>();
+            try (JarFile jar = new JarFile(file)) {
+                var entries = jar.entries();
+                while (entries.hasMoreElements()) {
+                    JarEntry entry = entries.nextElement();
+                    String name = entry.getName();
+                    if (name.endsWith(".class") && !name.equals("module-info.class")) {
+                        classNames.add(name.substring(0, name.length() - 6).replace('/', '.'));
+                    }
+                }
+            } catch (IOException e) {
+                log.warn("Failed to index JAR for incremental compilation: " + file + " (" + e.getMessage() + ")");
+            }
+            return classNames::contains;
+        }
+        return className -> false;
     }
 
     private static URL[] toURLs(File[] files) {
