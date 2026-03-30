@@ -54,6 +54,14 @@
     <build>
         <!-- Play convention: sources live under app/ instead of src/main/java/ -->
         <sourceDirectory>${basedir}/app</sourceDirectory>
+        <!-- Play convention: conf/ holds application.conf, routes, logback.xml etc.
+             Declaring it as a resource directory so maven-resources-plugin copies
+             contents to target/classes, where the classloader can find them. -->
+        <resources>
+            <resource>
+                <directory>${basedir}/conf</directory>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>io.github.konangelop</groupId>
