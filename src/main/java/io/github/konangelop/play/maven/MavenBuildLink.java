@@ -23,7 +23,6 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
-import java.util.Enumeration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -230,22 +229,21 @@ class MavenBuildLink implements BuildLink {
     }
 
     private ClassLoader createApplicationClassLoader() throws Exception {
-        // Only the project's compiled classes go in the app classloader.
+        // The app classloader has target/classes (compiled app code) and conf/
+        // (application.conf, logback.xml, persistence.xml, etc.).
         // Dependencies and Play framework are already on the server classloader (parent).
         // This isolation lets Play swap the app classloader on each reload.
         //
-        // Override getResources() to delegate entirely to parent, matching
-        // Play's DelegatedResourcesClassLoader. This prevents target/classes from
-        // contributing duplicate resources (e.g., persistence.xml) that are already
-        // found via the server classloader's dependency JARs. Class loading and
-        // getResource() (singular) still search target/classes normally.
-        URL[] urls = { new File(project.getBuild().getOutputDirectory()).toURI().toURL() };
-        return new URLClassLoader(urls, serverClassLoader) {
-            @Override
-            public Enumeration<URL> getResources(String name) throws IOException {
-                return getParent().getResources(name);
-            }
-        };
+        // conf/ is placed on the app classloader (not the server classloader) so that:
+        // 1. Resources from conf/ are not duplicated by the ClassRealm parent
+        // 2. Hot-reload picks up conf/ changes when the app classloader is recreated
+        List<URL> urls = new ArrayList<>();
+        urls.add(new File(project.getBuild().getOutputDirectory()).toURI().toURL());
+        File confDir = new File(project.getBasedir(), "conf");
+        if (confDir.isDirectory()) {
+            urls.add(confDir.toURI().toURL());
+        }
+        return new URLClassLoader(urls.toArray(new URL[0]), serverClassLoader);
     }
 
     private boolean invokeMavenBuild() {
